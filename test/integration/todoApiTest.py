@@ -49,6 +49,8 @@ class TestApi(unittest.TestCase):
         self.assertTrue(response.json())
         
         print('End - integration test List TODO')
+        
+    @pytest.mark.skipif(os.getenv("PRODUCTION") == "true", reason="Production env, do not execute this test")
     def test_api_addtodo(self):
         print('---------------------------------------')
         print('Starting - integration test Add TODO')
@@ -112,6 +114,7 @@ class TestApi(unittest.TestCase):
         )
         print('End - integration test Get TODO')
     
+    @pytest.mark.skipif(os.getenv("PRODUCTION") == "true", reason="Production env, do not execute this test")
     def test_api_updatetodo(self):
         print('---------------------------------------')
         print('Starting - integration test Update TODO')
@@ -165,6 +168,8 @@ class TestApi(unittest.TestCase):
             response.status_code, 200, "Error en la petición API a {url}"
         )
         print('End - integration test Update TODO')
+    
+    @pytest.mark.skipif(os.getenv("PRODUCTION") == "true", reason="Production env, do not execute this test")
     def test_api_deletetodo(self):
         print('---------------------------------------')
         print('Starting - integration test Delete TODO')
