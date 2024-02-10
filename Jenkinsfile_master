@@ -1,0 +1,48 @@
+pipeline {
+    agent any
+    stages {
+        stage('Get Code') {
+            steps {
+                sh'''
+                    mkdir -p ~/.ssh/
+                    ssh-keyscan -t rsa,dsa github.com >> ~/.ssh/known_hosts  
+                '''
+                git branch: 'master', url:'git@github.com:varodev/todo-list-aws.git', credentialsId: 'github_rsa'
+                dir('configs') {
+                    git branch: 'production', url:'git@github.com:varodev/todo-list-aws-config.git', credentialsId: 'github_rsa'
+                }
+            }
+        }
+        stage('Deploy') {
+            steps {
+                sh '''
+                    sam build --config-env production --config-file configs/samconfig.toml
+                    sam validate --region us-east-1
+                    sam deploy --config-env production --config-file configs/samconfig.toml --debug --no-fail-on-empty-changeset
+                    sam list stack-outputs --stack-name todo-list-aws-production --region us-east-1 --output json > out.json
+                '''
+            stash name: "samout", includes: "out.json"
+            }
+        }
+        stage('Rest Test') {
+            steps {
+                unstash 'samout'
+                sh '''
+                    export BASE_URL=$(jq ".[0].OutputValue" out.json -r)
+                    echo $BASE_URL
+                    export PRODUCTION="true"
+                    python3 -m pip install pytest
+                    python3 -m pytest --junitxml=result-rest.xml test/integration/*.py
+                '''
+                stash name: "rest", includes: "result-rest.xml"
+                junit 'result-rest.xml'
+            }
+        }
+    }
+    post { 
+        always { 
+            echo 'Clean env: delete dir'
+            cleanWs()
+        }
+    }
+}
