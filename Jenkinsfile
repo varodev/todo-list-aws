@@ -1,22 +1,25 @@
 pipeline {
     agent any
+    environment {
+        BRANCH_NAME="develop"
+        ENV_NAME = "${env.BRANCH_NAME == "develop" ? "staging" : "production"}"
+    }
     stages {
         stage('Get Code') {
+            when {
+                branch "develop"
+                branch "master"
+            }
             steps {
                 sh'''
                     whoami
                     hostname
                     mkdir -p ~/.ssh/
                     ssh-keyscan -t rsa,dsa github.com >> ~/.ssh/known_hosts
-                    if [ "$BRANCH_NAME" == "develop" ]; then
-                        export ENV="staging"
-                    elif [ "$BRANCH_NAME" == "master" ]; then
-                        export ENV="production"
-                    fi
                 '''
-                git branch: '$BRANCH_NAME', url:'git@github.com:varodev/todo-list-aws.git', credentialsId: 'github_rsa'
+                git branch: "${BRANCH_NAME}", url:'git@github.com:varodev/todo-list-aws.git', credentialsId: 'github_rsa'
                 dir('configs') {
-                    git branch: '$ENV', url:'git@github.com:varodev/todo-list-aws-config.git', credentialsId: 'github_rsa'
+                    git branch: "${ENV_NAME}, url:'git@github.com:varodev/todo-list-aws-config.git', credentialsId: 'github_rsa'
                 }
                 stash name: "repo", includes: "*"
             }
@@ -52,15 +55,10 @@ pipeline {
                 sh '''
                     whoami
                     hostname
-                    if [ "$BRANCH_NAME" == "develop" ]; then
-                        export ENV="staging"
-                    elif [ "$BRANCH_NAME" == "master" ]; then
-                        export ENV="production"
-                    fi
-                    sam build --config-env $ENV --config-file configs/samconfig.toml
+                    sam build --config-env $ENV_NAME --config-file configs/samconfig.toml
                     sam validate --region us-east-1 --config-file configs/samconfig.toml
-                    sam deploy --config-env $ENV --config-file configs/samconfig.toml --debug --no-fail-on-empty-changeset
-                    sam list stack-outputs --stack-name todo-list-aws-$ENV --region us-east-1 --output json > out.json
+                    sam deploy --config-env $ENV_NAME --config-file configs/samconfig.toml --debug --no-fail-on-empty-changeset
+                    sam list stack-outputs --stack-name todo-list-aws-$ENV_NAME --region us-east-1 --output json > out.json
                 '''
             stash name: "samout", includes: "out.json"
             }
@@ -68,6 +66,10 @@ pipeline {
         stage('Rest Test') {
             agent {
               label 'rest'
+            }
+            when {
+                branch "develop"
+                branch "master"
             }
             steps {
                 unstash 'repo'
