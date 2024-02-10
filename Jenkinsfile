@@ -19,7 +19,7 @@ pipeline {
                 '''
                 git branch: "${BRANCH_NAME}", url:'git@github.com:varodev/todo-list-aws.git', credentialsId: 'github_rsa'
                 dir('configs') {
-                    git branch: "${ENV_NAME}, url:'git@github.com:varodev/todo-list-aws-config.git', credentialsId: 'github_rsa'
+                    git branch: "${ENV_NAME}", url:'git@github.com:varodev/todo-list-aws-config.git', credentialsId: 'github_rsa'
                 }
                 stash name: "repo", includes: "*"
             }
