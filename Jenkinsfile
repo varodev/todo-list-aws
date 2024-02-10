@@ -1,7 +1,6 @@
 pipeline {
     agent any
     environment {
-        BRANCH_NAME="develop"
         ENV_NAME = "${env.BRANCH_NAME == "develop" ? "staging" : "production"}"
     }
     stages {
