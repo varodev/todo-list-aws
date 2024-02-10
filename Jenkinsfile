@@ -4,15 +4,35 @@ pipeline {
         stage('Get Code') {
             steps {
                 sh'''
+                    whoami
+                    hostname
                     mkdir -p ~/.ssh/
-                    ssh-keyscan -t rsa,dsa github.com >> ~/.ssh/known_hosts  
+                    ssh-keyscan -t rsa,dsa github.com >> ~/.ssh/known_hosts
+                    if [ "$BRANCH_NAME" == "develop" ]; then
+                        export ENV="staging"
+                    elif [ "$BRANCH_NAME" == "master" ]; then
+                        export ENV="production"
+                    fi
                 '''
-                git branch: 'develop', url:'git@github.com:varodev/todo-list-aws.git', credentialsId: 'github_rsa'
+                git branch: '$BRANCH_NAME', url:'git@github.com:varodev/todo-list-aws.git', credentialsId: 'github_rsa'
+                dir('configs') {
+                    git branch: '$ENV', url:'git@github.com:varodev/todo-list-aws-config.git', credentialsId: 'github_rsa'
+                }
+                stash name: "repo", includes: "*"
             }
         }
         stage('Static Test') {
+            when {
+                branch "develop"
+            }
+            agent {
+              label 'static'
+            }
             steps {
+                unstash "repo"
                 sh '''
+                    whoami
+                    hostname
                     ./deps.sh
                     python3 -m flake8 --format=pylint --output=result-flake8.txt --exit-zero src/*
                     python3 -m bandit -r . -o result-bandit.xml --exit-zero -f xml
@@ -24,20 +44,37 @@ pipeline {
             }
         }
         stage('Deploy') {
+            when {
+                branch "develop"
+                branch "master"
+            }
             steps {
                 sh '''
-                    sam build --config-env staging --config-file samconfig.toml
-                    sam validate --region us-east-1
-                    sam deploy --config-env staging --config-file samconfig.toml --debug --no-fail-on-empty-changeset
-                    sam list stack-outputs --stack-name todo-list-aws-staging --region us-east-1 --output json > out.json
+                    whoami
+                    hostname
+                    if [ "$BRANCH_NAME" == "develop" ]; then
+                        export ENV="staging"
+                    elif [ "$BRANCH_NAME" == "master" ]; then
+                        export ENV="production"
+                    fi
+                    sam build --config-env $ENV --config-file configs/samconfig.toml
+                    sam validate --region us-east-1 --config-file configs/samconfig.toml
+                    sam deploy --config-env $ENV --config-file configs/samconfig.toml --debug --no-fail-on-empty-changeset
+                    sam list stack-outputs --stack-name todo-list-aws-$ENV --region us-east-1 --output json > out.json
                 '''
             stash name: "samout", includes: "out.json"
             }
         }
         stage('Rest Test') {
+            agent {
+              label 'rest'
+            }
             steps {
+                unstash 'repo'
                 unstash 'samout'
                 sh '''
+                    whoami
+                    hostname
                     export BASE_URL=$(jq ".[0].OutputValue" out.json -r)
                     echo $BASE_URL
                     python3 -m pip install pytest
@@ -51,8 +88,13 @@ pipeline {
             environment {
                 GIT_AUTH = credentials('github_rsa')
             }
+            when {
+                branch "develop"
+            }
             steps {
                 sh '''
+                    whoami
+                    hostname
                     git config --global user.name "Aparicio"
                     git config --global user.password "alvmorapa87@gmail.com"
                     git checkout master
@@ -64,12 +106,6 @@ pipeline {
                     }
                 }
             }
-        }
-    }
-    post { 
-        always { 
-            echo 'Clean env: delete dir'
-            cleanWs()
         }
     }
 }
