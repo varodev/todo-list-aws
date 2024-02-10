@@ -7,8 +7,10 @@ pipeline {
     stages {
         stage('Get Code') {
             when {
-                branch "develop"
-                branch "master"
+                anyOf {
+                    branch "develop"
+                    branch "master"
+                }
             }
             steps {
                 sh'''
@@ -48,8 +50,10 @@ pipeline {
         }
         stage('Deploy') {
             when {
-                branch "develop"
-                branch "master"
+                anyOf {
+                    branch "develop"
+                    branch "master"
+                }
             }
             steps {
                 sh '''
@@ -65,11 +69,13 @@ pipeline {
         }
         stage('Rest Test') {
             agent {
-              label 'rest'
+                label 'rest'
             }
             when {
-                branch "develop"
-                branch "master"
+                anyOf {
+                    branch "develop"
+                    branch "master"
+                }
             }
             steps {
                 unstash 'repo'
